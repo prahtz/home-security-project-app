@@ -42,7 +42,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    PushNotificationsManager().init();
+    if (Platform.isAndroid) PushNotificationsManager().init();
     return MaterialApp(
       onGenerateRoute: (settings) {
         if (settings.name == MyHomePage.id) {
@@ -572,17 +572,21 @@ class _MyHomePageState extends State<MyHomePage> {
                             },
                             color: Colors.white,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                              Icon(
-                                Icons.lock_open,
-                                size: buttonWidth > buttonHeigth
-                                    ? buttonWidth / 6
-                                    : buttonHeigth / 3,
-                              ),SizedBox(height: buttonHeigth / 30),
-                                Text("Disattiva allarme",textAlign: TextAlign.center, style: GoogleFonts.openSans(textStyle: TextStyle(fontSize: 17)))
-                            ])),
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.lock_open,
+                                    size: buttonWidth > buttonHeigth
+                                        ? buttonWidth / 6
+                                        : buttonHeigth / 3,
+                                  ),
+                                  SizedBox(height: buttonHeigth / 30),
+                                  Text("Disattiva allarme",
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.openSans(
+                                          textStyle: TextStyle(fontSize: 17)))
+                                ])),
                         FlatButton(
                             onLongPress: _activateAlarmPressed,
                             onPressed: () {
@@ -595,34 +599,42 @@ class _MyHomePageState extends State<MyHomePage> {
                             },
                             color: Colors.white,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                              Icon(
-                                Icons.lock,
-                                size: buttonWidth > buttonHeigth
-                                    ? buttonWidth / 6
-                                    : buttonHeigth / 3,
-                              ),SizedBox(height: buttonHeigth / 30),
-                                Text("Attiva allarme",textAlign: TextAlign.center, style: GoogleFonts.openSans(textStyle: TextStyle(fontSize: 17)))
-                            ])),
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.lock,
+                                    size: buttonWidth > buttonHeigth
+                                        ? buttonWidth / 6
+                                        : buttonHeigth / 3,
+                                  ),
+                                  SizedBox(height: buttonHeigth / 30),
+                                  Text("Attiva allarme",
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.openSans(
+                                          textStyle: TextStyle(fontSize: 17)))
+                                ])),
                         FlatButton(
                             onPressed: () => Navigator.pushNamed(
                                 context, RegisterFirstPage.id,
                                 arguments: widget.socket),
                             color: Colors.white,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                              Icon(
-                                CustomIcons.door_sensor,
-                                size: buttonWidth > buttonHeigth
-                                    ? buttonWidth / 6
-                                    : buttonHeigth / 3,
-                              ),SizedBox(height: buttonHeigth / 30),
-                                Text("Registra sensore magnetico",textAlign: TextAlign.center, style: GoogleFonts.openSans(textStyle: TextStyle(fontSize: 17)))
-                            ])),
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    CustomIcons.door_sensor,
+                                    size: buttonWidth > buttonHeigth
+                                        ? buttonWidth / 6
+                                        : buttonHeigth / 3,
+                                  ),
+                                  SizedBox(height: buttonHeigth / 30),
+                                  Text("Registra sensore magnetico",
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.openSans(
+                                          textStyle: TextStyle(fontSize: 17)))
+                                ])),
                       ],
                     );
                   }),
