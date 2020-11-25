@@ -99,6 +99,7 @@ class _WaitingPageState extends State<WaitingPage>
   void initState() {
     super.initState();
     tryConnection();
+
   }
 
   @override
@@ -203,6 +204,8 @@ class _WaitingPageState extends State<WaitingPage>
       }, onDone: () {
         socket.close();
       }, cancelOnError: true);
+
+      socket.add(utf8.encode(PushNotificationsManager.token + Message.eom));
 
       Navigator.pushNamed(
         context,
