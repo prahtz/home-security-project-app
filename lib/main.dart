@@ -1,6 +1,11 @@
+import 'dart:isolate';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+
 import 'package:home_security_project_app/push_notifications.dart';
 import 'package:home_security_project_app/register_pages.dart';
+import 'package:alarm_notification/alarm_notification.dart';
 import 'custom_icons_icons.dart';
 import 'dart:io';
 import 'dart:convert';
@@ -42,7 +47,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    if (Platform.isAndroid) PushNotificationsManager().init();
+    
     return MaterialApp(
       onGenerateRoute: (settings) {
         if (settings.name == MyHomePage.id) {
@@ -99,7 +104,6 @@ class _WaitingPageState extends State<WaitingPage>
   void initState() {
     super.initState();
     tryConnection();
-
   }
 
   @override
@@ -205,6 +209,8 @@ class _WaitingPageState extends State<WaitingPage>
         socket.close();
       }, cancelOnError: true);
 
+      if (Platform.isAndroid) 
+        await PushNotificationsManager().init();
       socket.add(utf8.encode(PushNotificationsManager.token + Message.eom));
 
       Navigator.pushNamed(
@@ -213,6 +219,7 @@ class _WaitingPageState extends State<WaitingPage>
         arguments: {'socket': socket, 'socketStream': myStream},
       );
     } catch (err) {
+      print(err);
       print("Nessuna connessione disponibile");
       showAlertDialog(context, "Impossibile connettersi alla centralina",
           "Verificare la connessione di rete e riprovare.", (void value) {
@@ -250,9 +257,11 @@ class _MyHomePageState extends State<MyHomePage> {
   PageController _pageController;
   List<List<String>> sensorInfoList = new List<List<String>>();
 
+
   @override
   void initState() {
     super.initState();
+
     _pageController = PageController();
   }
 
@@ -267,6 +276,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _deactivateAlarmPressed() {
+    
+    SendPort sp = IsolateNameServer.lookupPortByName("hsp");
+    if(sp != null)
+      sp.send("stop");
+    AlarmNotification.stop();
     widget.socket.add(utf8.encode(Message.deactivateAlarm + Message.eom));
   }
 
