@@ -47,7 +47,6 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    
     return MaterialApp(
       onGenerateRoute: (settings) {
         if (settings.name == MyHomePage.id) {
@@ -209,8 +208,7 @@ class _WaitingPageState extends State<WaitingPage>
         socket.close();
       }, cancelOnError: true);
 
-      if (Platform.isAndroid) 
-        await PushNotificationsManager().init();
+      if (Platform.isAndroid) await PushNotificationsManager().init();
       socket.add(utf8.encode(PushNotificationsManager.token + Message.eom));
 
       Navigator.pushNamed(
@@ -256,12 +254,13 @@ class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
   PageController _pageController;
   List<List<String>> sensorInfoList = new List<List<String>>();
-
+  bool _alarmActive = false;
 
   @override
   void initState() {
     super.initState();
-
+    _initListener();
+    //widget.socket.add(utf8.encode(Message.requestInfo + Message.eom));
     _pageController = PageController();
   }
 
@@ -271,15 +270,31 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
+  void _initListener() {
+    String message = "";
+    sensorInfoList = new List<List<String>>();
+    widget.socketStream.listen((data) {
+      message = message + utf8.decode(data);
+      if (message.contains(Message.eom)) {
+        print(message);
+        if (message == Message.alarmActive + Message.eom || message == Message.alarmInactive + Message.eom)  {
+          setState(() {
+            _alarmActive = message == Message.alarmActive + Message.eom ? true : false;
+          });
+        }
+        message = "";
+      }
+    });
+    widget.socket.add(utf8.encode(Message.requestInfo + Message.eom));
+  }
+
   void _activateAlarmPressed() {
     widget.socket.add(utf8.encode(Message.activateAlarm + Message.eom));
   }
 
   void _deactivateAlarmPressed() {
-    
     SendPort sp = IsolateNameServer.lookupPortByName("hsp");
-    if(sp != null)
-      sp.send("stop");
+    if (sp != null) sp.send("stop");
     AlarmNotification.stop();
     widget.socket.add(utf8.encode(Message.deactivateAlarm + Message.eom));
   }
@@ -533,10 +548,18 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Scaffold(
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              title: Center(
-                  child: Text(
+              centerTitle: true,
+              title: Text(
                 widget.title,
-              )),
+              ),
+              actions: <Widget>[
+                Container(
+                    child: Container(
+                  child: Icon(Icons.fiber_manual_record,
+                  color: _alarmActive ? Colors.red[500] : Colors.green[500],),
+                  padding: EdgeInsets.all(15),
+                ))
+              ],
             ),
             bottomNavigationBar: BottomNavigationBar(
               items: const <BottomNavigationBarItem>[
@@ -739,7 +762,11 @@ class Message {
   static final String removeSensor = "15";
   static final String removeSensorSuccess = "16";
   static final String removeSensorFailed = "17";
+  static final String alarmActive = "18";
+  static final String alarmInactive = "19";
+  static final String requestInfo = "1A";
   static final String eom = "//eom";
+  
 
   factory Message() => _singleton;
 
