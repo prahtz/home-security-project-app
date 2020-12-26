@@ -126,6 +126,7 @@ class _WaitingPageState extends State<WaitingPage>
 
   void tryConnection() async {
     try {
+      String payload = "";
       String ip = "prah.homepc.it";
       int port = 33470;
       Socket socket =
@@ -133,9 +134,14 @@ class _WaitingPageState extends State<WaitingPage>
       Stream<Uint8List> myStream = socket.asBroadcastStream();
       myStream.listen((data) {
         print(utf8.decode(data) + " LISTEN 1");
-        String message = utf8.decode(data);
-        if (message.contains(Message.eom)) {
-          message = message.substring(0, message.length - Message.eom.length);
+        payload = payload + utf8.decode(data);
+        while (payload.contains(Message.eom)) {
+          String message = payload.substring(0, payload.indexOf(Message.eom));
+          if (message.length + Message.eom.length != payload.length)
+            payload = payload.substring(
+                message.length + Message.eom.length, payload.length);
+          else
+            payload = "";
           if (message == Message.nextCode)
             Navigator.pushNamed(context, RegisterSecondPage.id,
                 arguments: socket);
@@ -163,6 +169,7 @@ class _WaitingPageState extends State<WaitingPage>
             Navigator.popUntil(
                 context, (route) => route.settings.name == MyHomePage.id);
           } else if (message == Message.activationSuccess) {
+            socket.add(utf8.encode(Message.requestInfo + Message.eom));
             print("Allarme attivo");
             showAlertDialog(context, "Allarme attivato!",
                 "Tieni premuto sul pulsante \"Disattiva allarme\" per disattivare l'allarme",
@@ -177,6 +184,7 @@ class _WaitingPageState extends State<WaitingPage>
               return v;
             });
           } else if (message == Message.deactivationSuccess) {
+            socket.add(utf8.encode(Message.requestInfo + Message.eom));
             print("Allarme disattivato");
             showAlertDialog(context, "Allarme disattivato!", "", (v) {
               return v;
@@ -196,11 +204,12 @@ class _WaitingPageState extends State<WaitingPage>
               return v;
             });
           }
-        } else {
+        }
+        /*else {
           Navigator.popUntil(
               context, (route) => route.settings.name == MyHomePage.id);
           print("Valore inaspettato ricevuto");
-        }
+        }*/
       }, onError: (error) {
         showSocketErrorDialog(context);
         socket.close();
@@ -271,18 +280,24 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _initListener() {
-    String message = "";
+    String payload = "";
     sensorInfoList = new List<List<String>>();
     widget.socketStream.listen((data) {
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        print(message);
-        if (message == Message.alarmActive + Message.eom || message == Message.alarmInactive + Message.eom)  {
+      payload = payload + utf8.decode(data);
+      while (payload.contains(Message.eom)) {
+        String message = payload.substring(0, payload.indexOf(Message.eom));
+        if (message.length + Message.eom.length != payload.length)
+          payload = payload.substring(
+              message.length + Message.eom.length, payload.length);
+        else
+          payload = "";
+        print(message + " --- UPDATER");
+        if (message == Message.alarmActive ||
+            message == Message.alarmInactive) {
           setState(() {
-            _alarmActive = message == Message.alarmActive + Message.eom ? true : false;
+            _alarmActive = message == Message.alarmActive ? true : false;
           });
         }
-        message = "";
       }
     });
     widget.socket.add(utf8.encode(Message.requestInfo + Message.eom));
@@ -555,8 +570,10 @@ class _MyHomePageState extends State<MyHomePage> {
               actions: <Widget>[
                 Container(
                     child: Container(
-                  child: Icon(Icons.fiber_manual_record,
-                  color: _alarmActive ? Colors.red[500] : Colors.green[500],),
+                  child: Icon(
+                    Icons.fiber_manual_record,
+                    color: _alarmActive ? Colors.red[500] : Colors.green[500],
+                  ),
                   padding: EdgeInsets.all(15),
                 ))
               ],
@@ -766,7 +783,6 @@ class Message {
   static final String alarmInactive = "19";
   static final String requestInfo = "1A";
   static final String eom = "//eom";
-  
 
   factory Message() => _singleton;
 

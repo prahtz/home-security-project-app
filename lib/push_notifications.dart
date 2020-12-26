@@ -72,5 +72,7 @@ Future<void> waitAndStop() async {
   IsolateNameServer.registerPortWithName(rp.sendPort, "hsp");
   rp.listen((message) {
     AlarmNotification.stop();
+    IsolateNameServer.removePortNameMapping("hsp");
+    rp.close();
   });
 }
