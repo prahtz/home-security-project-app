@@ -582,11 +582,11 @@ class _MyHomePageState extends State<MyHomePage> {
               items: const <BottomNavigationBarItem>[
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home),
-                  title: Text('Home'),
+                  label: 'Home',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.event_note),
-                  title: Text('Lista Sensori'),
+                  label: 'Lista Sensori',
                 ),
               ],
               currentIndex: _selectedIndex,

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:alarm_notification/alarm_notification.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
 
 class PushNotificationsManager {
@@ -24,15 +25,35 @@ class PushNotificationsManager {
     "description": "Alarm notification",
   };
 
+  static Map<String, String> channelRingMap = {
+    "id": "RING",
+    "name": "Ringtone",
+    "description": "Ringtone notification",
+  };
+  static FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
+
   Future<void> init() async {
     if (!_initialized) {
       await AlarmNotification.init();
+      flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('app_icon');
+      final InitializationSettings initializationSettings =
+          InitializationSettings(
+        android: initializationSettingsAndroid,
+      );
+      await flutterLocalNotificationsPlugin.initialize(initializationSettings,
+          onSelectNotification: selectNotification);
 
       // For iOS request permission first.
       _firebaseMessaging.requestNotificationPermissions();
       _firebaseMessaging.configure(
           onMessage: (Map<String, dynamic> message) async {
-            showNotificationWithSound("onMessage");
+            if (message['data'].toString().contains("battery")) {
+              showRingtoneNotification();
+            } else {
+              showAlarmNotification();
+            }
             print("onMessage: $message");
           },
           onBackgroundMessage: myBackgroundMessageHandler,
@@ -52,18 +73,62 @@ class PushNotificationsManager {
     }
   }
 
-
-  Future showNotificationWithSound(String message) async {
+  Future showAlarmNotification() async {
     AlarmNotification.play();
     AlarmNotification.show();
   }
+
+  Future showRingtoneNotification() async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails('RING', 'Ringtone', 'Ringtone notification',
+            importance: Importance.max,
+            priority: Priority.high,
+            showWhen: false);
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'CORRENTE ASSENTE!',
+      'Rilevata assenza di corrente presso la centralina.',
+      platformChannelSpecifics,
+    );
+  }
 }
+
+Future selectNotification(String payload) async {}
 
 Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) async {
   print("Back");
-  AlarmNotification.play();
-  AlarmNotification.show();
-  waitAndStop();
+  if (message['data'].toString().contains('battery')) {
+    FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('app_icon');
+    final InitializationSettings initializationSettings =
+        InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings,
+        onSelectNotification: selectNotification);
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails('RING', 'Ringtone', 'Ringtone notification',
+            importance: Importance.max,
+            priority: Priority.high,
+            showWhen: false);
+    const NotificationDetails platformChannelSpecifics =
+        NotificationDetails(android: androidPlatformChannelSpecifics);
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'CORRENTE ASSENTE!',
+      'Rilevata assenza di corrente presso la centralina.',
+      platformChannelSpecifics,
+    );
+  } else {
+    AlarmNotification.play();
+    AlarmNotification.show();
+    waitAndStop();
+  }
   return Future<void>.value();
 }
 
@@ -72,7 +137,5 @@ Future<void> waitAndStop() async {
   IsolateNameServer.registerPortWithName(rp.sendPort, "hsp");
   rp.listen((message) {
     AlarmNotification.stop();
-    IsolateNameServer.removePortNameMapping("hsp");
-    rp.close();
   });
 }
