@@ -264,6 +264,16 @@ class _MyHomePageState extends State<MyHomePage> {
   PageController _pageController;
   List<List<String>> sensorInfoList = new List<List<String>>();
   bool _alarmActive = false;
+  static const Map<String, int> _sensorIndexMap = {
+    'type': 0,
+    'id': 1,
+    'status': 2,
+    'enabled': 3,
+    'charged': 4,
+    'open_code': 5,
+    'close_code': 6,
+    'info': 7
+  };
 
   @override
   void initState() {
@@ -399,10 +409,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   String getSensorStateName(List<String> sensorInfo) {
-    if (sensorInfo[3] == "0") {
+    if (sensorInfo[_sensorIndexMap['enabled']] == "0") {
       return "DISABILITATO";
     }
-    if (sensorInfo[2] == "0")
+    if (sensorInfo[_sensorIndexMap['status']] == "0")
       return "APERTO";
     else if (sensorInfo[2] == "1") return "CHIUSO";
     return "NON DETERMINATO";
@@ -437,14 +447,59 @@ class _MyHomePageState extends State<MyHomePage> {
               },
               child: Text('Rimuovi sensore'),
             ),
+            SimpleDialogOption(
+              onPressed: () {
+                updateBatteryStatus(index);
+                Navigator.of(context).pop();
+              },
+              child: Text('Aggiorna stato batteria'),
+            ),
           ],
         );
       },
     ).then(onClose);
   }
 
+  void updateBatteryStatus(index) {
+    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
+    String message = "";
+    StreamSubscription<Uint8List> subscription;
+    subscription = widget.socketStream.listen((data) {
+      print(utf8.decode(data));
+      message = message + utf8.decode(data);
+      if (message.contains(Message.eom)) {
+        if (message.contains(Message.updateBatterySuccess + Message.eom)) {
+          print("Stato della batteria aggionato!");
+          showAlertDialog(
+              context, "Stato della batteria aggionato con successo!", "\n",
+              (v) {
+            _getSensorList(1, false);
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          subscription.cancel();
+        } else if (message
+            .contains(Message.updateBatteryFailed + Message.eom)) {
+          print("Errore: batteria non scarica!");
+          showAlertDialog(context, "Errore: batteria non scarica!",
+              "La batteria non è scarica.\nNon è dunque necessario aggionare lo stato della batteria.",
+              (v) {
+            _getSensorList(1, false);
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          subscription.cancel();
+        }
+      }
+    });
+    widget.socket
+        .add(utf8.encode(sensorID + ";" + Message.updateBattery + Message.eom));
+  }
+
   void removeSensor(index) {
-    String sensorID = sensorInfoList[index][1];
+    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
     String message = "";
     StreamSubscription<Uint8List> subscription;
     subscription = widget.socketStream.listen((data) {
@@ -481,7 +536,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void deactivateSensor(int index) {
-    String sensorID = sensorInfoList[index][1];
+    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
     String message = "";
     StreamSubscription<Uint8List> subscription;
     subscription = widget.socketStream.listen((data) {
@@ -519,7 +574,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void activateSensor(int index) {
-    String sensorID = sensorInfoList[index][1];
+    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
     String message = "";
     StreamSubscription<Uint8List> subscription;
     subscription = widget.socketStream.listen((data) {
@@ -705,14 +760,33 @@ class _MyHomePageState extends State<MyHomePage> {
                           Column column = new Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              ListTile(
-                                  onTap: () => showOptionsDialog(context,
-                                      "Opzioni sensore", index, (v) {}),
-                                  title: Text("Nome sensore: " +
-                                      sensorInfoList[index][6] +
-                                      "\nStato sensore: " +
-                                      getSensorStateName(
-                                          sensorInfoList[index]))),
+                              Row(
+                                children: [
+                                  Flexible(
+                                      child: ListTile(
+                                    onTap: () => showOptionsDialog(context,
+                                        "Opzioni sensore", index, (v) {}),
+                                    title: Text("Nome sensore: " +
+                                        sensorInfoList[index]
+                                            [_sensorIndexMap['info']] +
+                                        "\nStato sensore: " +
+                                        getSensorStateName(
+                                            sensorInfoList[index])),
+                                  )),
+                                  Container(
+                                      child: Container(
+                                    child: sensorInfoList[index]
+                                                [_sensorIndexMap['charged']] ==
+                                            "0"
+                                        ? Icon(
+                                            Icons.battery_alert,
+                                            color: Colors.red[500],
+                                          )
+                                        : Container(),
+                                    padding: EdgeInsets.all(15),
+                                  ))
+                                ],
+                              ),
                               Divider(),
                             ],
                           );
@@ -782,6 +856,9 @@ class Message {
   static final String alarmActive = "18";
   static final String alarmInactive = "19";
   static final String requestInfo = "1A";
+  static final String updateBattery = "1B";
+  static final String updateBatterySuccess = "1C";
+  static final String updateBatteryFailed = "1D";
   static final String eom = "//eom";
 
   factory Message() => _singleton;
