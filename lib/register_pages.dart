@@ -6,13 +6,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:home_security_project_app/main.dart';
+import 'package:home_security_project_app/tcp_handler.dart';
 import 'package:keyboard_visibility/keyboard_visibility.dart';
 
 class RegisterFirstPage extends StatefulWidget {
-  final Socket socket;
   static const String id = 'register_first';
 
-  RegisterFirstPage({this.socket}) : super();
+  RegisterFirstPage() : super();
 
   @override
   _RegisterFirstPageState createState() => _RegisterFirstPageState();
@@ -33,8 +33,7 @@ class _RegisterFirstPageState extends State<RegisterFirstPage>
   bool go = false;
 
   void _registerNewSensor() async {
-    widget.socket.add(utf8.encode(Message.registerDoorSensor + Message.eom));
-    print('sent');
+    TcpHandler.sendMessage(Message.registerDoorSensor);
   }
 
   @override
@@ -101,13 +100,12 @@ class _RegisterFirstPageState extends State<RegisterFirstPage>
     });
 
     _controller.forward();
-    print("o");
   }
 
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT FIRST");
-      widget.socket.add(utf8.encode(Message.abort + Message.eom));
+      TcpHandler.sendMessage(Message.abort);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -191,8 +189,7 @@ class _RegisterFirstPageState extends State<RegisterFirstPage>
 
 class RegisterSecondPage extends StatefulWidget {
   static const String id = 'register_second';
-  final Socket socket;
-  RegisterSecondPage({this.socket}) : super();
+  RegisterSecondPage() : super();
 
   @override
   _RegisterSecondPageState createState() => _RegisterSecondPageState();
@@ -280,7 +277,7 @@ class _RegisterSecondPageState extends State<RegisterSecondPage>
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT SECOND");
-      widget.socket.add(utf8.encode(Message.abort + Message.eom));
+      TcpHandler.sendMessage(Message.abort);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -367,9 +364,7 @@ class _RegisterSecondPageState extends State<RegisterSecondPage>
 
 class RegisterThirdPage extends StatefulWidget {
   static const String id = 'register_third';
-  final Socket socket;
-  final Stream<Uint8List> socketStream;
-  RegisterThirdPage({this.socket, this.socketStream}) : super();
+  RegisterThirdPage() : super();
 
   @override
   _RegisterThirdPageState createState() => _RegisterThirdPageState();
@@ -410,7 +405,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT THIRD");
-      widget.socket.add(utf8.encode(Message.abort + Message.eom));
+      TcpHandler.sendMessage(Message.abort);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -514,7 +509,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
                 ))));
   }
 
-  void sendSensorName(String sensorName) {
+  void sendSensorName(String sensorName) async {
     if (sensorName.contains(Message.eom[0]) ||
         sensorName.contains(";") ||
         sensorName.isEmpty ||
@@ -526,23 +521,36 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
       });
       return;
     }
-
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(sensorName);
+          break;
+        case Message.registerSuccess:
+          showAlertDialog(
+              context,
+              "Registrazione del sensore completata!",
+              "Il sensore da questo momento è attivo.",
+              (v) => Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id));
+          subscription.cancel();
+          break;
+        case Message.registerFailed:
+          showAlertDialog(
+              context,
+              "ERRORE: registrazione del sensore fallita!",
+              "Qualcosa è andato storto! Riprova!.",
+              (v) => Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id));
+          subscription.cancel();
+          break;
+      }
+    });
+    TcpHandler.sendMessage(MessageType.string);
     setState(() {
       _isButtonDisabled = true;
     });
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      String message = utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        message = message.substring(0, message.length - Message.eom.length);
-        if (message == Message.ack) {
-          widget.socket.add(utf8.encode(sensorName + Message.eom));
-        }
-      }
-      subscription.cancel();
-    });
-    widget.socket.add(utf8.encode(MessageType.string + Message.eom));
   }
 }
 
