@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:home_security_project_app/main.dart';
 import 'package:home_security_project_app/tcp_handler.dart';
@@ -525,7 +522,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
     subscription.onData((message) {
       switch (message) {
         case Message.ack:
-          TcpHandler.sendMessage(sensorName);
+          TcpHandler.sendMessage(Message.string + sensorName);
           break;
         case Message.registerSuccess:
           showAlertDialog(
@@ -547,37 +544,11 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
           break;
       }
     });
-    TcpHandler.sendMessage(MessageType.string);
+    TcpHandler.sendMessage(Message.stringRequest);
     setState(() {
       _isButtonDisabled = true;
     });
   }
 }
 
-Future<void> showAlertDialog(
-    BuildContext context, String title, String description, Function onClose) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text(title),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              Text(description),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          FlatButton(
-            child: Text('OK'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
-      );
-    },
-  ).then(onClose);
-}
+

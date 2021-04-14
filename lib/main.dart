@@ -53,17 +53,27 @@ class MyApp extends StatelessWidget {
           return MaterialPageRoute(
               settings: settings,
               builder: (_) {
-                Map args = settings.arguments;
                 return MyHomePage(
                   title: 'Home Security Project',
                 );
+              });
+        } else if (settings.name == PinFirstSetupPage.id) {
+          return MaterialPageRoute(
+              settings: settings,
+              builder: (_) {
+                return PinFirstSetupPage();
               });
         } else if (settings.name == PinUpdatePage.id) {
           return MaterialPageRoute(
               settings: settings,
               builder: (_) {
-                Map args = settings.arguments;
                 return PinUpdatePage();
+              });
+        } else if (settings.name == PinCheckPage.id) {
+          return MaterialPageRoute(
+              settings: settings,
+              builder: (_) {
+                return PinCheckPage(settings.arguments);
               });
         } else if (settings.name == RegisterFirstPage.id) {
           return MaterialPageRoute(
@@ -75,7 +85,6 @@ class MyApp extends StatelessWidget {
           return NoAnimationMaterialPageRoute(
               settings: settings,
               builder: (_) {
-                Map args = settings.arguments;
                 return RegisterThirdPage();
               });
         }
@@ -127,19 +136,51 @@ class _WaitingPageState extends State<WaitingPage>
   void tryConnection() async {
     String ip = "prah.homepc.it";
     int port = 33470;
-    await TcpHandler.initSocket(ip, port);
-    await TcpHandler.startService(context);
-    _initListener();
+    try {
+      await TcpHandler.initSocket(ip, port);
+      await TcpHandler.startService(context);
+      _initListener();
+      _sendFirebaseToken();
+    } catch (err) {
+      showAlertDialog(context, "Impossibile connettersi alla centralina",
+          "Verificare la connessione di rete e riprovare.", (void value) {
+        Phoenix.rebirth(context);
+        return value;
+      });
+    }
+  }
 
+  void _setupFirstPin() async {
+    var sub = TcpHandler.getMessageStreamSubscription();
+    sub.onData((message) {
+      if (message == Message.ack) {
+        Navigator.pushNamed(context, PinFirstSetupPage.id);
+        sub.cancel();
+      } else if (message == Message.pinFirstSetupFailed) {
+        Navigator.pushNamed(context, MyHomePage.id);
+        sub.cancel();
+      }
+    });
+    TcpHandler.sendMessage(Message.pinFirstSetup);
+  }
+
+  void _sendFirebaseToken() async {
     if (Platform.isAndroid) {
       await PushNotificationsManager().init();
-      TcpHandler.sendMessage(PushNotificationsManager.token);
+      var sub = TcpHandler.getMessageStreamSubscription();
+      sub.onData((message) {
+        if (message == Message.ack)
+          TcpHandler.sendMessage(
+              Message.string + PushNotificationsManager.token);
+        else if (message == Message.firebaseTokenReceived) {
+          _setupFirstPin();
+          sub.cancel();
+        }
+      });
+      TcpHandler.sendMessage(Message.firebaseToken);
+    } else {
+      _setupFirstPin();
     }
-
-    Navigator.pushNamed(
-      context,
-      MyHomePage.id,
-    );
   }
 
   void _initListener() {
@@ -148,7 +189,7 @@ class _WaitingPageState extends State<WaitingPage>
         case Message.nextCode:
           Navigator.pushNamed(context, RegisterSecondPage.id, arguments: null);
           break;
-        case MessageType.string:
+        case Message.stringRequest:
           Navigator.pushNamed(context, RegisterThirdPage.id);
           break;
         case Message.activationSuccess:
@@ -279,44 +320,6 @@ class _MyHomePageState extends State<MyHomePage> {
       );
   }
 
-  void _onSensorListInfo2(String message, int index, bool tapped) {
-    message = message.substring(0, message.length - Message.eom.length);
-    List<List<String>> sensorInfoList = new List<List<String>>();
-    List<String> sensorInfo = new List<String>();
-    int i = 0;
-    int j = 0;
-    bool go = true;
-    String separator = ";";
-    while (go) {
-      while (message[i] != separator && message[i] != Message.eom[0]) i++;
-      sensorInfo.add(message.substring(j, i));
-      print(message.substring(j, i));
-      if (message[i] == Message.eom[0]) {
-        sensorInfoList.add(sensorInfo);
-        sensorInfo = new List<String>();
-        i = i + Message.eom.length;
-        j = i;
-        print(message.substring(i, message.length));
-        if (message.substring(i, message.length) == Message.endSensorList)
-          go = false;
-      } else {
-        i++;
-        j = i;
-      }
-    }
-    this.sensorInfoList = sensorInfoList;
-    print("LISTA SENSORI\n" + sensorInfoList.toString());
-    setState(() {
-      _selectedIndex = index;
-    });
-    if (tapped)
-      _pageController.animateToPage(
-        1,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-  }
-
   void _getSensorList(int index, bool tapped) {
     var sensorInfo = new List<String>();
     var subscription = TcpHandler.getMessageStreamSubscription();
@@ -336,7 +339,10 @@ class _MyHomePageState extends State<MyHomePage> {
           _onSensorListInfo(sensorInfo, index, tapped);
           break;
         default:
-          sensorInfo.add(message);
+          if (message.contains(Message.string)) {
+            message = Message.clearStringMessage(message);
+            sensorInfo.add(message);
+          }
       }
     });
     TcpHandler.sendMessage(Message.sensorList);
@@ -393,8 +399,8 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             SimpleDialogOption(
               onPressed: () {
-                removeSensor(index);
-                Navigator.of(context).pop();
+                removeSensor(index, context);
+                //Navigator.of(context).pop();
               },
               child: Text('Rimuovi sensore'),
             ),
@@ -416,6 +422,9 @@ class _MyHomePageState extends State<MyHomePage> {
     var subscription = TcpHandler.getMessageStreamSubscription();
     subscription.onData((message) {
       switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID);
+          break;
         case Message.updateBatterySuccess:
           showAlertDialog(
               context, "Stato della batteria aggionato con successo!", "\n",
@@ -440,31 +449,54 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(
-        sensorID + Message.separator + Message.updateBattery);
+    TcpHandler.sendMessage(Message.updateBattery);
   }
 
-  void removeSensor(index) {
-    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
+  void removeSensor(index, context) {
+    Function f = () {
+      String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
+      var subscription = TcpHandler.getMessageStreamSubscription();
+      subscription.onData((message) {
+        switch (message) {
+          case Message.ack:
+            TcpHandler.sendMessage(Message.string + sensorID);
+            break;
+          case Message.removeSensorSuccess:
+            showAlertDialog(context, "Sensore rimosso con successo!",
+                "Il sensore è stato rimosso.\nPotrai riaggiungerlo con l'opzione \"Registra nuovo sensore\".",
+                (v) {
+              _getSensorList(1, false);
+              Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id);
+              return v;
+            });
+            subscription.cancel();
+            break;
+          case Message.removeSensorFailed:
+            showAlertDialog(context, "Errore: sensore non rimovibile!",
+                "Non è stato possibile rimuovere il sensore.\nVerifica nuovamente lo stato attuale del sensore.",
+                (v) {
+              _getSensorList(1, false);
+              Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id);
+              return v;
+            });
+            subscription.cancel();
+            break;
+        }
+      });
+    };
     var subscription = TcpHandler.getMessageStreamSubscription();
     subscription.onData((message) {
       switch (message) {
-        case Message.removeSensorSuccess:
-          showAlertDialog(context, "Sensore rimosso con successo!",
-              "Il sensore è stato rimosso.\nPotrai riaggiungerlo con l'opzione \"Registra nuovo sensore\".",
-              (v) {
-            _getSensorList(1, false);
-            Navigator.popUntil(
-                context, (route) => route.settings.name == MyHomePage.id);
-            return v;
-          });
+        case Message.ack:
+          Navigator.pushNamed(context, PinCheckPage.id, arguments: f);
           subscription.cancel();
           break;
-        case Message.removeSensorFailed:
-          showAlertDialog(context, "Errore: sensore non rimovibile!",
-              "Non è stato possibile rimuovere il sensore.\nVerifica nuovamente lo stato attuale del sensore.",
+        case Message.pinCheckFailed:
+          showAlertDialog(context, "PIN non inizializzato!",
+              "Errore non previsto, sarai reindirizzato verso la pagina principale.",
               (v) {
-            _getSensorList(1, false);
             Navigator.popUntil(
                 context, (route) => route.settings.name == MyHomePage.id);
             return v;
@@ -473,14 +505,18 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(sensorID + Message.separator + Message.removeSensor);
+    TcpHandler.sendMessage(Message.removeSensor);
   }
 
   void deactivateSensor(int index) {
     String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
     var subscription = TcpHandler.getMessageStreamSubscription();
     subscription.onData((message) {
+      print(message);
       switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID);
+          break;
         case Message.deactivateSensorSuccess:
           showAlertDialog(context, "Sensore disattivato con successo!",
               "Il sensore è stato disattivato.\nPuoi riattivarlo in qualsiasi momento.",
@@ -505,8 +541,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(
-        sensorID + Message.separator + Message.deactivateSensor);
+    TcpHandler.sendMessage(Message.deactivateSensor);
   }
 
   void activateSensor(int index) {
@@ -514,6 +549,9 @@ class _MyHomePageState extends State<MyHomePage> {
     var subscription = TcpHandler.getMessageStreamSubscription();
     subscription.onData((message) {
       switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID);
+          break;
         case Message.activateSensorSuccess:
           showAlertDialog(context, "Sensore attivato con successo!",
               "Il sensore è stato attivato.\nPuoi disattivarlo in qualsiasi momento.",
@@ -538,8 +576,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(
-        sensorID + Message.separator + Message.activateSensor);
+    TcpHandler.sendMessage(Message.activateSensor);
   }
 
   @override
@@ -680,10 +717,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                           textStyle: TextStyle(fontSize: 17)))
                                 ])),
                         FlatButton(
-                            onPressed: () => Navigator.pushNamed(
-                                  context,
-                                  PinUpdatePage.id,
-                                ),
+                            onPressed: () => _pinUpdate(),
                             color: Colors.white,
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -769,16 +803,33 @@ class _MyHomePageState extends State<MyHomePage> {
                   ])
                 ])));
   }
-}
 
-class MessageType {
-  static final MessageType _singleton = MessageType._internal();
-  static const String message = "a";
-  static const String string = "b";
+  void _pinUpdate() {
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          Navigator.pushNamed(
+            context,
+            PinUpdatePage.id,
+          );
+          subscription.cancel();
+          break;
+        case Message.updatePinFailed:
+          showAlertDialog(context, "Modifica PIN fallita!",
+              "Errore non previsto, sarai reindirizzato verso la pagina principale.",
+              (v) {
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          subscription.cancel();
+          break;
+      }
+    });
 
-  factory MessageType() => _singleton;
-
-  MessageType._internal(); // private constructor
+    TcpHandler.sendMessage(Message.updatePin);
+  }
 }
 
 class Message {
@@ -816,12 +867,22 @@ class Message {
   static const String updatePin = "1E";
   static const String updatePinSuccess = "1F";
   static const String updatePinFailed = "20";
-  static const String pinRequest = "21";
-  static const String pinRequestSuccess = "22";
-  static const String pinRequestFailed = "23";
+  static const String pinCheck = "21";
+  static const String pinCheckSuccess = "22";
+  static const String pinCheckFailed = "23";
+  static const String firebaseToken = "24";
+  static const String firebaseTokenReceived = "25";
+  static const String stringRequest = "26";
+  static const String pinFirstSetup = "27";
+  static const String pinFirstSetupSuccess = "28";
+  static const String pinFirstSetupFailed = "29";
   static const String eom = "//eom";
   static const String none = "//none";
+  static const String string = "//·";
   static const String separator = ";";
+  static String clearStringMessage(String msg) {
+    return msg.substring(string.length);
+  }
 
   factory Message() => _singleton;
 
@@ -854,4 +915,32 @@ Future<void> showSocketErrorDialog(BuildContext context) {
       );
     },
   ).then((value) => Phoenix.rebirth(context));
+}
+
+Future<void> showAlertDialog(
+    BuildContext context, String title, String description, Function onClose) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: <Widget>[
+              Text(description),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          FlatButton(
+            child: Text('OK'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      );
+    },
+  ).then(onClose);
 }

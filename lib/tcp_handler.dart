@@ -3,26 +3,23 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter_phoenix/flutter_phoenix.dart';
-import 'package:home_security_project_app/register_pages.dart';
 
 import 'main.dart';
 
 class TcpHandler {
   static Socket socket;
   static Stream<Uint8List> myStream;
-  static StreamController<String> messageStream =
-      new StreamController.broadcast();
+  static StreamController<String> messageStream;
 
   static String _payload = "";
 
   static Future<void> initSocket(String ip, int port) async {
-    socket = await Socket.connect(ip, port, timeout: Duration(seconds: 10));
-    myStream = socket.asBroadcastStream();
+      socket = await Socket.connect(ip, port, timeout: Duration(seconds: 10));
+      myStream = socket.asBroadcastStream();
+      messageStream = new StreamController.broadcast();
   }
 
   static Future<void> startService(BuildContext context) async {
-    try {
       socket.listen((data) {
         _payload = _payload + utf8.decode(data);
         String message = _payload;
@@ -33,27 +30,19 @@ class TcpHandler {
         }
         _payload = message;
       }, onError: (error) {
-        showSocketErrorDialog(context);
+        print(error);
         messageStream.close();
         socket.close();
+        showSocketErrorDialog(context);
       }, onDone: () {
         messageStream.close();
         socket.close();
       }, cancelOnError: true);
-    } catch (err) {
-      socket.close();
-      messageStream.close();
-      print(err);
-      print("Nessuna connessione disponibile");
-      showAlertDialog(context, "Impossibile connettersi alla centralina",
-          "Verificare la connessione di rete e riprovare.", (void value) {
-        Phoenix.rebirth(context);
-        return value;
-      });
-    }
+
+    
   }
 
-  static void sendMessage(String message) async {
+  static void sendMessage(String message) {
     socket.add(utf8.encode(message + Message.eom));
   }
 
@@ -63,5 +52,9 @@ class TcpHandler {
 
   static StreamSubscription<String> getMessageStreamSubscription() {
     return messageStream.stream.listen((event) {});
+  }
+
+  static void closeSocket() {
+    socket.close();
   }
 }
