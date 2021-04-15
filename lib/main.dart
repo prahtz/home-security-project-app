@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 
 import 'package:home_security_project_app/push_notifications.dart';
 import 'package:home_security_project_app/register_pages.dart';
+import 'package:home_security_project_app/auth_pages.dart';
 import 'package:alarm_notification/alarm_notification.dart';
+import 'package:home_security_project_app/tcp_handler.dart';
 import 'custom_icons_icons.dart';
 import 'dart:io';
-import 'dart:convert';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:move_to_background/move_to_background.dart';
@@ -53,30 +53,39 @@ class MyApp extends StatelessWidget {
           return MaterialPageRoute(
               settings: settings,
               builder: (_) {
-                Map args = settings.arguments;
                 return MyHomePage(
                   title: 'Home Security Project',
-                  socket: args['socket'],
-                  socketStream: args['socketStream'],
                 );
+              });
+        } else if (settings.name == PinFirstSetupPage.id) {
+          return MaterialPageRoute(
+              settings: settings,
+              builder: (_) {
+                return PinFirstSetupPage();
+              });
+        } else if (settings.name == PinUpdatePage.id) {
+          return MaterialPageRoute(
+              settings: settings,
+              builder: (_) {
+                return PinUpdatePage();
+              });
+        } else if (settings.name == PinCheckPage.id) {
+          return MaterialPageRoute(
+              settings: settings,
+              builder: (_) {
+                return PinCheckPage(settings.arguments);
               });
         } else if (settings.name == RegisterFirstPage.id) {
           return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => RegisterFirstPage(socket: settings.arguments));
+              settings: settings, builder: (_) => RegisterFirstPage());
         } else if (settings.name == RegisterSecondPage.id) {
           return NoAnimationMaterialPageRoute(
-              settings: settings,
-              builder: (_) => RegisterSecondPage(socket: settings.arguments));
+              settings: settings, builder: (_) => RegisterSecondPage());
         } else if (settings.name == RegisterThirdPage.id) {
           return NoAnimationMaterialPageRoute(
               settings: settings,
               builder: (_) {
-                Map args = settings.arguments;
-                return RegisterThirdPage(
-                  socket: args['socket'],
-                  socketStream: args['socketStream'],
-                );
+                return RegisterThirdPage();
               });
         }
         return MaterialPageRoute(builder: (_) => WaitingPage());
@@ -125,109 +134,14 @@ class _WaitingPageState extends State<WaitingPage>
   }
 
   void tryConnection() async {
+    String ip = "prah.homepc.it";
+    int port = 33470;
     try {
-      String payload = "";
-      String ip = "prah.homepc.it";
-      int port = 33470;
-      Socket socket =
-          await Socket.connect(ip, port, timeout: Duration(seconds: 10));
-      Stream<Uint8List> myStream = socket.asBroadcastStream();
-      myStream.listen((data) {
-        print(utf8.decode(data) + " LISTEN 1");
-        payload = payload + utf8.decode(data);
-        while (payload.contains(Message.eom)) {
-          String message = payload.substring(0, payload.indexOf(Message.eom));
-          if (message.length + Message.eom.length != payload.length)
-            payload = payload.substring(
-                message.length + Message.eom.length, payload.length);
-          else
-            payload = "";
-          if (message == Message.nextCode)
-            Navigator.pushNamed(context, RegisterSecondPage.id,
-                arguments: socket);
-          else if (message == MessageType.string) {
-            Navigator.pushNamed(context, RegisterThirdPage.id,
-                arguments: {'socket': socket, 'socketStream': myStream});
-          } else if (message == Message.registerSuccess) {
-            //MEX DI ERRORE
-            showAlertDialog(
-                context,
-                "Registrazione del sensore completata!",
-                "Il sensore da questo momento è attivo.",
-                (v) => Navigator.popUntil(
-                    context, (route) => route.settings.name == MyHomePage.id));
-          } else if (message == Message.registerFailed) {
-            //MEX DI ERRORE
-            showAlertDialog(
-                context,
-                "ERRORE: registrazione del sensore fallita!",
-                "Qualcosa è andato storto! Riprova!.",
-                (v) => Navigator.popUntil(
-                    context, (route) => route.settings.name == MyHomePage.id));
-          } else if (message == Message.abort) {
-            //MEX DI ERRORE
-            Navigator.popUntil(
-                context, (route) => route.settings.name == MyHomePage.id);
-          } else if (message == Message.activationSuccess) {
-            socket.add(utf8.encode(Message.requestInfo + Message.eom));
-            print("Allarme attivo");
-            showAlertDialog(context, "Allarme attivato!",
-                "Tieni premuto sul pulsante \"Disattiva allarme\" per disattivare l'allarme",
-                (v) {
-              return v;
-            });
-          } else if (message == Message.activationFailed) {
-            print("Allarme non attivabile");
-            showAlertDialog(context, "Impossibile attivare l'allarme",
-                "Controlla che tutti gli ingressi siano chiusi.\n\nPremi su \"Lista sensori\" per visualizzare lo stato attuale degli ingressi",
-                (v) {
-              return v;
-            });
-          } else if (message == Message.deactivationSuccess) {
-            socket.add(utf8.encode(Message.requestInfo + Message.eom));
-            print("Allarme disattivato");
-            showAlertDialog(context, "Allarme disattivato!", "", (v) {
-              return v;
-            });
-          } else if (message == Message.deactivationFailed) {
-            print("Allarme non disattivabile");
-            showAlertDialog(context, "Impossibile disattivare l'allarme",
-                "Assicurati che l'allarme sia già attivo!", (v) {
-              return v;
-            });
-          } else if (message == Message.timeOut) {
-            print("Tempo scaduto");
-            showAlertDialog(context, "Tempo scaduto!",
-                "Sarai reindirizzato verso la pagina principale", (v) {
-              Navigator.popUntil(
-                  context, (route) => route.settings.name == MyHomePage.id);
-              return v;
-            });
-          }
-        }
-        /*else {
-          Navigator.popUntil(
-              context, (route) => route.settings.name == MyHomePage.id);
-          print("Valore inaspettato ricevuto");
-        }*/
-      }, onError: (error) {
-        showSocketErrorDialog(context);
-        socket.close();
-      }, onDone: () {
-        socket.close();
-      }, cancelOnError: true);
-
-      if (Platform.isAndroid) await PushNotificationsManager().init();
-      socket.add(utf8.encode(PushNotificationsManager.token + Message.eom));
-
-      Navigator.pushNamed(
-        context,
-        MyHomePage.id,
-        arguments: {'socket': socket, 'socketStream': myStream},
-      );
+      await TcpHandler.initSocket(ip, port);
+      await TcpHandler.startService(context);
+      _initListener();
+      _sendFirebaseToken();
     } catch (err) {
-      print(err);
-      print("Nessuna connessione disponibile");
       showAlertDialog(context, "Impossibile connettersi alla centralina",
           "Verificare la connessione di rete e riprovare.", (void value) {
         Phoenix.rebirth(context);
@@ -235,16 +149,95 @@ class _WaitingPageState extends State<WaitingPage>
       });
     }
   }
+
+  void _setupFirstPin() async {
+    var sub = TcpHandler.getMessageStreamSubscription();
+    sub.onData((message) {
+      if (message == Message.ack) {
+        Navigator.pushNamed(context, PinFirstSetupPage.id);
+        sub.cancel();
+      } else if (message == Message.pinFirstSetupFailed) {
+        Navigator.pushNamed(context, MyHomePage.id);
+        sub.cancel();
+      }
+    });
+    TcpHandler.sendMessage(Message.pinFirstSetup, context);
+  }
+
+  void _sendFirebaseToken() async {
+    if (Platform.isAndroid) {
+      await PushNotificationsManager().init();
+      var sub = TcpHandler.getMessageStreamSubscription();
+      sub.onData((message) {
+        if (message == Message.ack)
+          TcpHandler.sendMessage(
+              Message.string + PushNotificationsManager.token, context);
+        else if (message == Message.firebaseTokenReceived) {
+          _setupFirstPin();
+          sub.cancel();
+        }
+      });
+      TcpHandler.sendMessage(Message.firebaseToken, context);
+    } else {
+      _setupFirstPin();
+    }
+  }
+
+  void _initListener() {
+    TcpHandler.getMessageStreamSubscription().onData((message) {
+      switch (message) {
+        case Message.nextCode:
+          Navigator.pushNamed(context, RegisterSecondPage.id, arguments: null);
+          break;
+        case Message.stringRequest:
+          Navigator.pushNamed(context, RegisterThirdPage.id);
+          break;
+        case Message.activationSuccess:
+          TcpHandler.sendMessage(Message.requestInfo, context);
+          showAlertDialog(context, "Allarme attivato!",
+              "Tieni premuto sul pulsante \"Disattiva allarme\" per disattivare l'allarme",
+              (v) {
+            return v;
+          });
+          break;
+        case Message.activationFailed:
+          showAlertDialog(context, "Impossibile attivare l'allarme",
+              "Controlla che tutti gli ingressi siano chiusi.\n\nPremi su \"Lista sensori\" per visualizzare lo stato attuale degli ingressi",
+              (v) {
+            return v;
+          });
+          break;
+        case Message.deactivationSuccess:
+          TcpHandler.sendMessage(Message.requestInfo, context);
+          showAlertDialog(context, "Allarme disattivato!", "", (v) {
+            return v;
+          });
+          break;
+        case Message.deactivationFailed:
+          showAlertDialog(context, "Impossibile disattivare l'allarme",
+              "Assicurati che l'allarme sia già attivo!", (v) {
+            return v;
+          });
+          break;
+        case Message.timeOut:
+          showAlertDialog(context, "Tempo scaduto!",
+              "Sarai reindirizzato verso la pagina principale", (v) {
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          break;
+        default:
+      }
+    });
+  }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title, this.socket, this.socketStream})
-      : super(key: key);
+  MyHomePage({Key key, this.title}) : super(key: key);
 
   static const String id = 'homepage';
   final String title;
-  final Socket socket;
-  final Stream<Uint8List> socketStream;
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -279,7 +272,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _initListener();
-    //widget.socket.add(utf8.encode(Message.requestInfo + Message.eom));
+    TcpHandler.sendMessage(Message.requestInfo, context);
     _pageController = PageController();
   }
 
@@ -290,65 +283,31 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _initListener() {
-    String payload = "";
-    sensorInfoList = new List<List<String>>();
-    widget.socketStream.listen((data) {
-      payload = payload + utf8.decode(data);
-      while (payload.contains(Message.eom)) {
-        String message = payload.substring(0, payload.indexOf(Message.eom));
-        if (message.length + Message.eom.length != payload.length)
-          payload = payload.substring(
-              message.length + Message.eom.length, payload.length);
-        else
-          payload = "";
-        print(message + " --- UPDATER");
-        if (message == Message.alarmActive ||
-            message == Message.alarmInactive) {
-          setState(() {
-            _alarmActive = message == Message.alarmActive ? true : false;
-          });
-        }
+    TcpHandler.getMessageStreamSubscription().onData((message) {
+      if (message == Message.alarmActive || message == Message.alarmInactive) {
+        setState(() {
+          _alarmActive = message == Message.alarmActive ? true : false;
+        });
       }
     });
-    widget.socket.add(utf8.encode(Message.requestInfo + Message.eom));
   }
 
-  void _activateAlarmPressed() {
-    widget.socket.add(utf8.encode(Message.activateAlarm + Message.eom));
+  void _activateAlarmPressed() async {
+    TcpHandler.sendMessage(Message.activateAlarm, context);
   }
 
   void _deactivateAlarmPressed() {
     SendPort sp = IsolateNameServer.lookupPortByName("hsp");
     if (sp != null) sp.send("stop");
     AlarmNotification.stop();
-    widget.socket.add(utf8.encode(Message.deactivateAlarm + Message.eom));
+    TcpHandler.sendMessage(Message.deactivateAlarm, context);
   }
 
-  void _onSensorListInfo(String message, int index, bool tapped) {
-    message = message.substring(0, message.length - Message.eom.length);
-    List<List<String>> sensorInfoList = new List<List<String>>();
-    List<String> sensorInfo = new List<String>();
-    int i = 0;
-    int j = 0;
-    bool go = true;
-    while (go) {
-      while (message[i] != ";" && message[i] != Message.eom[0]) i++;
-      sensorInfo.add(message.substring(j, i));
-      print(message.substring(j, i));
-      if (message[i] == Message.eom[0]) {
-        sensorInfoList.add(sensorInfo);
-        sensorInfo = new List<String>();
-        i = i + Message.eom.length;
-        j = i;
-        print(message.substring(i, message.length));
-        if (message.substring(i, message.length) == Message.endSensorList)
-          go = false;
-      } else {
-        i++;
-        j = i;
-      }
+  void _onSensorListInfo(List<String> sensorInfo, int index, bool tapped) {
+    sensorInfoList = new List<List<String>>();
+    for (String sensor in sensorInfo) {
+      sensorInfoList.add(sensor.split(Message.separator));
     }
-    this.sensorInfoList = sensorInfoList;
     print("LISTA SENSORI\n" + sensorInfoList.toString());
     setState(() {
       _selectedIndex = index;
@@ -362,14 +321,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _getSensorList(int index, bool tapped) {
-    String message = "";
-    sensorInfoList = new List<List<String>>();
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        if (message == Message.endSensorList + Message.eom) {
+    var sensorInfo = new List<String>();
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.endSensorList:
           setState(() {
             _selectedIndex = index;
           });
@@ -380,15 +336,16 @@ class _MyHomePageState extends State<MyHomePage> {
               curve: Curves.easeInOut,
             );
           subscription.cancel();
-        }
-        if (message
-            .contains(Message.eom + Message.endSensorList + Message.eom)) {
-          _onSensorListInfo(message, index, tapped);
-          subscription.cancel();
-        }
+          _onSensorListInfo(sensorInfo, index, tapped);
+          break;
+        default:
+          if (message.contains(Message.string)) {
+            message = Message.clearStringMessage(message);
+            sensorInfo.add(message);
+          }
       }
     });
-    widget.socket.add(utf8.encode(Message.sensorList + Message.eom));
+    TcpHandler.sendMessage(Message.sensorList, context);
   }
 
   void _onPageChanged(int index, bool tapped) {
@@ -442,8 +399,8 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             SimpleDialogOption(
               onPressed: () {
-                removeSensor(index);
-                Navigator.of(context).pop();
+                removeSensor(index, context);
+                //Navigator.of(context).pop();
               },
               child: Text('Rimuovi sensore'),
             ),
@@ -462,14 +419,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void updateBatteryStatus(index) {
     String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
-    String message = "";
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        if (message.contains(Message.updateBatterySuccess + Message.eom)) {
-          print("Stato della batteria aggionato!");
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID, context);
+          break;
+        case Message.updateBatterySuccess:
           showAlertDialog(
               context, "Stato della batteria aggionato con successo!", "\n",
               (v) {
@@ -479,9 +435,8 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        } else if (message
-            .contains(Message.updateBatteryFailed + Message.eom)) {
-          print("Errore: batteria non scarica!");
+          break;
+        case Message.updateBatteryFailed:
           showAlertDialog(context, "Errore: batteria non scarica!",
               "La batteria non è scarica.\nNon è dunque necessario aggionare lo stato della batteria.",
               (v) {
@@ -491,60 +446,78 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        }
+          break;
       }
     });
-    widget.socket
-        .add(utf8.encode(sensorID + ";" + Message.updateBattery + Message.eom));
+    TcpHandler.sendMessage(Message.updateBattery, context);
   }
 
-  void removeSensor(index) {
-    String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
-    String message = "";
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        if (message.contains(Message.removeSensorSuccess + Message.eom)) {
-          print("Sensore rimosso");
-          showAlertDialog(context, "Sensore rimosso con successo!",
-              "Il sensore è stato rimosso.\nPotrai riaggiungerlo con l'opzione \"Registra nuovo sensore\".",
-              (v) {
-            _getSensorList(1, false);
-            Navigator.popUntil(
-                context, (route) => route.settings.name == MyHomePage.id);
-            return v;
-          });
-          subscription.cancel();
-        } else if (message.contains(Message.removeSensorFailed + Message.eom)) {
-          print("Errore: sensore non rimovibile!");
-          showAlertDialog(context, "Errore: sensore non rimovibile!",
-              "Non è stato possibile rimuovere il sensore.\nVerifica nuovamente lo stato attuale del sensore.",
-              (v) {
-            _getSensorList(1, false);
-            Navigator.popUntil(
-                context, (route) => route.settings.name == MyHomePage.id);
-            return v;
-          });
-          subscription.cancel();
+  void removeSensor(index, context) {
+    Function f = () {
+      String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
+      var subscription = TcpHandler.getMessageStreamSubscription();
+      subscription.onData((message) {
+        switch (message) {
+          case Message.ack:
+            TcpHandler.sendMessage(Message.string + sensorID, context);
+            break;
+          case Message.removeSensorSuccess:
+            showAlertDialog(context, "Sensore rimosso con successo!",
+                "Il sensore è stato rimosso.\nPotrai riaggiungerlo con l'opzione \"Registra nuovo sensore\".",
+                (v) {
+              _getSensorList(1, false);
+              Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id);
+              return v;
+            });
+            subscription.cancel();
+            break;
+          case Message.removeSensorFailed:
+            showAlertDialog(context, "Errore: sensore non rimovibile!",
+                "Non è stato possibile rimuovere il sensore.\nVerifica nuovamente lo stato attuale del sensore.",
+                (v) {
+              _getSensorList(1, false);
+              Navigator.popUntil(
+                  context, (route) => route.settings.name == MyHomePage.id);
+              return v;
+            });
+            subscription.cancel();
+            break;
         }
+      });
+    };
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          Navigator.pushNamed(context, PinCheckPage.id, arguments: f);
+          subscription.cancel();
+          break;
+        case Message.pinCheckFailed:
+          showAlertDialog(context, "PIN non inizializzato!",
+              "Errore non previsto, sarai reindirizzato verso la pagina principale.",
+              (v) {
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          subscription.cancel();
+          break;
       }
     });
-    widget.socket
-        .add(utf8.encode(sensorID + ";" + Message.removeSensor + Message.eom));
+    TcpHandler.sendMessage(Message.removeSensor, context);
   }
 
   void deactivateSensor(int index) {
     String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
-    String message = "";
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        if (message.contains(Message.deactivateSensorSuccess + Message.eom)) {
-          print("Sensore disattivato");
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      print(message);
+      switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID, context);
+          break;
+        case Message.deactivateSensorSuccess:
           showAlertDialog(context, "Sensore disattivato con successo!",
               "Il sensore è stato disattivato.\nPuoi riattivarlo in qualsiasi momento.",
               (v) {
@@ -554,9 +527,8 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        } else if (message
-            .contains(Message.deactivateSensorFailed + Message.eom)) {
-          print("Errore: sensore non disattivabile!");
+          break;
+        case Message.deactivateSensorFailed:
           showAlertDialog(context, "Errore: sensore non disattivabile!",
               "Non è stato possibile disattivare il sensore.\nVerifica nuovamente lo stato attuale del sensore.",
               (v) {
@@ -566,23 +538,21 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        }
+          break;
       }
     });
-    widget.socket.add(
-        utf8.encode(sensorID + ";" + Message.deactivateSensor + Message.eom));
+    TcpHandler.sendMessage(Message.deactivateSensor, context);
   }
 
   void activateSensor(int index) {
     String sensorID = sensorInfoList[index][_sensorIndexMap['id']];
-    String message = "";
-    StreamSubscription<Uint8List> subscription;
-    subscription = widget.socketStream.listen((data) {
-      print(utf8.decode(data));
-      message = message + utf8.decode(data);
-      if (message.contains(Message.eom)) {
-        if (message.contains(Message.activateSensorSuccess + Message.eom)) {
-          print("Sensore attivato");
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          TcpHandler.sendMessage(Message.string + sensorID, context);
+          break;
+        case Message.activateSensorSuccess:
           showAlertDialog(context, "Sensore attivato con successo!",
               "Il sensore è stato attivato.\nPuoi disattivarlo in qualsiasi momento.",
               (v) {
@@ -592,9 +562,8 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        } else if (message
-            .contains(Message.activateSensorFailed + Message.eom)) {
-          print("Errore: sensore non attivabile!");
+          break;
+        case Message.activateSensorFailed:
           showAlertDialog(context, "Errore: sensore non attivabile!",
               "Non è stato possibile attivare il sensore.\nVerifica nuovamente lo stato attuale del sensore.\nSe l'allarme è attivo, assicurati che il sensore sia nello stato CHIUSO prima di procedere con l'attivazione.",
               (v) {
@@ -604,11 +573,10 @@ class _MyHomePageState extends State<MyHomePage> {
             return v;
           });
           subscription.cancel();
-        }
+          break;
       }
     });
-    widget.socket.add(
-        utf8.encode(sensorID + ";" + Message.activateSensor + Message.eom));
+    TcpHandler.sendMessage(Message.activateSensor, context);
   }
 
   @override
@@ -728,8 +696,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ])),
                         FlatButton(
                             onPressed: () => Navigator.pushNamed(
-                                context, RegisterFirstPage.id,
-                                arguments: widget.socket),
+                                  context,
+                                  RegisterFirstPage.id,
+                                ),
                             color: Colors.white,
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -743,6 +712,25 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                                   SizedBox(height: buttonHeigth / 30),
                                   Text("Registra sensore magnetico",
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.openSans(
+                                          textStyle: TextStyle(fontSize: 17)))
+                                ])),
+                        FlatButton(
+                            onPressed: () => _pinUpdate(),
+                            color: Colors.white,
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.dialpad,
+                                    size: buttonWidth > buttonHeigth
+                                        ? buttonWidth / 6
+                                        : buttonHeigth / 3,
+                                  ),
+                                  SizedBox(height: buttonHeigth / 30),
+                                  Text("Modifica PIN",
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.openSans(
                                           textStyle: TextStyle(fontSize: 17)))
@@ -815,51 +803,86 @@ class _MyHomePageState extends State<MyHomePage> {
                   ])
                 ])));
   }
-}
 
-class MessageType {
-  static final MessageType _singleton = MessageType._internal();
-  static final String message = "a";
-  static final String string = "b";
+  void _pinUpdate() {
+    var subscription = TcpHandler.getMessageStreamSubscription();
+    subscription.onData((message) {
+      switch (message) {
+        case Message.ack:
+          Navigator.pushNamed(
+            context,
+            PinUpdatePage.id,
+          );
+          subscription.cancel();
+          break;
+        case Message.updatePinFailed:
+          showAlertDialog(context, "Modifica PIN fallita!",
+              "Errore non previsto, sarai reindirizzato verso la pagina principale.",
+              (v) {
+            Navigator.popUntil(
+                context, (route) => route.settings.name == MyHomePage.id);
+            return v;
+          });
+          subscription.cancel();
+          break;
+      }
+    });
 
-  factory MessageType() => _singleton;
-
-  MessageType._internal(); // private constructor
+    TcpHandler.sendMessage(Message.updatePin, context);
+  }
 }
 
 class Message {
   static final Message _singleton = Message._internal();
-  static final String activateAlarm = "00";
-  static final String deactivateAlarm = "01";
-  static final String registerDoorSensor = "02";
-  static final String sensorList = "03";
-  static final String ack = "04";
-  static final String abort = "05";
-  static final String nextCode = "06";
-  static final String registerSuccess = "07";
-  static final String registerFailed = "08";
-  static final String activationSuccess = "09";
-  static final String activationFailed = "0A";
-  static final String deactivationSuccess = "0B";
-  static final String deactivationFailed = "0C";
-  static final String endSensorList = "0D";
-  static final String timeOut = "0E";
-  static final String deactivateSensor = "0F";
-  static final String deactivateSensorSuccess = "10";
-  static final String deactivateSensorFailed = "11";
-  static final String activateSensor = "12";
-  static final String activateSensorSuccess = "13";
-  static final String activateSensorFailed = "14";
-  static final String removeSensor = "15";
-  static final String removeSensorSuccess = "16";
-  static final String removeSensorFailed = "17";
-  static final String alarmActive = "18";
-  static final String alarmInactive = "19";
-  static final String requestInfo = "1A";
-  static final String updateBattery = "1B";
-  static final String updateBatterySuccess = "1C";
-  static final String updateBatteryFailed = "1D";
-  static final String eom = "//eom";
+  static const String activateAlarm = "00";
+  static const String deactivateAlarm = "01";
+  static const String registerDoorSensor = "02";
+  static const String sensorList = "03";
+  static const String ack = "04";
+  static const String abort = "05";
+  static const String nextCode = "06";
+  static const String registerSuccess = "07";
+  static const String registerFailed = "08";
+  static const String activationSuccess = "09";
+  static const String activationFailed = "0A";
+  static const String deactivationSuccess = "0B";
+  static const String deactivationFailed = "0C";
+  static const String endSensorList = "0D";
+  static const String timeOut = "0E";
+  static const String deactivateSensor = "0F";
+  static const String deactivateSensorSuccess = "10";
+  static const String deactivateSensorFailed = "11";
+  static const String activateSensor = "12";
+  static const String activateSensorSuccess = "13";
+  static const String activateSensorFailed = "14";
+  static const String removeSensor = "15";
+  static const String removeSensorSuccess = "16";
+  static const String removeSensorFailed = "17";
+  static const String alarmActive = "18";
+  static const String alarmInactive = "19";
+  static const String requestInfo = "1A";
+  static const String updateBattery = "1B";
+  static const String updateBatterySuccess = "1C";
+  static const String updateBatteryFailed = "1D";
+  static const String updatePin = "1E";
+  static const String updatePinSuccess = "1F";
+  static const String updatePinFailed = "20";
+  static const String pinCheck = "21";
+  static const String pinCheckSuccess = "22";
+  static const String pinCheckFailed = "23";
+  static const String firebaseToken = "24";
+  static const String firebaseTokenReceived = "25";
+  static const String stringRequest = "26";
+  static const String pinFirstSetup = "27";
+  static const String pinFirstSetupSuccess = "28";
+  static const String pinFirstSetupFailed = "29";
+  static const String eom = "//eom";
+  static const String none = "//none";
+  static const String string = "//·";
+  static const String separator = ";";
+  static String clearStringMessage(String msg) {
+    return msg.substring(string.length);
+  }
 
   factory Message() => _singleton;
 
@@ -892,4 +915,32 @@ Future<void> showSocketErrorDialog(BuildContext context) {
       );
     },
   ).then((value) => Phoenix.rebirth(context));
+}
+
+Future<void> showAlertDialog(
+    BuildContext context, String title, String description, Function onClose) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: <Widget>[
+              Text(description),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          FlatButton(
+            child: Text('OK'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      );
+    },
+  ).then(onClose);
 }
