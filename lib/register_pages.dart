@@ -30,7 +30,7 @@ class _RegisterFirstPageState extends State<RegisterFirstPage>
   bool go = false;
 
   void _registerNewSensor() async {
-    TcpHandler.sendMessage(Message.registerDoorSensor);
+    TcpHandler.sendMessage(Message.registerDoorSensor, context);
   }
 
   @override
@@ -102,7 +102,7 @@ class _RegisterFirstPageState extends State<RegisterFirstPage>
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT FIRST");
-      TcpHandler.sendMessage(Message.abort);
+      TcpHandler.sendMessage(Message.abort, context);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -274,7 +274,7 @@ class _RegisterSecondPageState extends State<RegisterSecondPage>
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT SECOND");
-      TcpHandler.sendMessage(Message.abort);
+      TcpHandler.sendMessage(Message.abort, context);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -402,7 +402,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
   Future<bool> _onBackPressed() async {
     try {
       print("ABORT THIRD");
-      TcpHandler.sendMessage(Message.abort);
+      TcpHandler.sendMessage(Message.abort, context);
     } catch (err) {
       print("Socket chiuso");
     }
@@ -522,7 +522,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
     subscription.onData((message) {
       switch (message) {
         case Message.ack:
-          TcpHandler.sendMessage(Message.string + sensorName);
+          TcpHandler.sendMessage(Message.string + sensorName, context);
           break;
         case Message.registerSuccess:
           showAlertDialog(
@@ -544,7 +544,7 @@ class _RegisterThirdPageState extends State<RegisterThirdPage>
           break;
       }
     });
-    TcpHandler.sendMessage(Message.stringRequest);
+    TcpHandler.sendMessage(Message.stringRequest, context);
     setState(() {
       _isButtonDisabled = true;
     });

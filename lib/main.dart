@@ -161,7 +161,7 @@ class _WaitingPageState extends State<WaitingPage>
         sub.cancel();
       }
     });
-    TcpHandler.sendMessage(Message.pinFirstSetup);
+    TcpHandler.sendMessage(Message.pinFirstSetup, context);
   }
 
   void _sendFirebaseToken() async {
@@ -171,13 +171,13 @@ class _WaitingPageState extends State<WaitingPage>
       sub.onData((message) {
         if (message == Message.ack)
           TcpHandler.sendMessage(
-              Message.string + PushNotificationsManager.token);
+              Message.string + PushNotificationsManager.token, context);
         else if (message == Message.firebaseTokenReceived) {
           _setupFirstPin();
           sub.cancel();
         }
       });
-      TcpHandler.sendMessage(Message.firebaseToken);
+      TcpHandler.sendMessage(Message.firebaseToken, context);
     } else {
       _setupFirstPin();
     }
@@ -193,7 +193,7 @@ class _WaitingPageState extends State<WaitingPage>
           Navigator.pushNamed(context, RegisterThirdPage.id);
           break;
         case Message.activationSuccess:
-          TcpHandler.sendMessage(Message.requestInfo);
+          TcpHandler.sendMessage(Message.requestInfo, context);
           showAlertDialog(context, "Allarme attivato!",
               "Tieni premuto sul pulsante \"Disattiva allarme\" per disattivare l'allarme",
               (v) {
@@ -208,7 +208,7 @@ class _WaitingPageState extends State<WaitingPage>
           });
           break;
         case Message.deactivationSuccess:
-          TcpHandler.sendMessage(Message.requestInfo);
+          TcpHandler.sendMessage(Message.requestInfo, context);
           showAlertDialog(context, "Allarme disattivato!", "", (v) {
             return v;
           });
@@ -272,7 +272,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _initListener();
-    TcpHandler.sendMessage(Message.requestInfo);
+    TcpHandler.sendMessage(Message.requestInfo, context);
     _pageController = PageController();
   }
 
@@ -293,14 +293,14 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _activateAlarmPressed() async {
-    TcpHandler.sendMessage(Message.activateAlarm);
+    TcpHandler.sendMessage(Message.activateAlarm, context);
   }
 
   void _deactivateAlarmPressed() {
     SendPort sp = IsolateNameServer.lookupPortByName("hsp");
     if (sp != null) sp.send("stop");
     AlarmNotification.stop();
-    TcpHandler.sendMessage(Message.deactivateAlarm);
+    TcpHandler.sendMessage(Message.deactivateAlarm, context);
   }
 
   void _onSensorListInfo(List<String> sensorInfo, int index, bool tapped) {
@@ -345,7 +345,7 @@ class _MyHomePageState extends State<MyHomePage> {
           }
       }
     });
-    TcpHandler.sendMessage(Message.sensorList);
+    TcpHandler.sendMessage(Message.sensorList, context);
   }
 
   void _onPageChanged(int index, bool tapped) {
@@ -423,7 +423,7 @@ class _MyHomePageState extends State<MyHomePage> {
     subscription.onData((message) {
       switch (message) {
         case Message.ack:
-          TcpHandler.sendMessage(Message.string + sensorID);
+          TcpHandler.sendMessage(Message.string + sensorID, context);
           break;
         case Message.updateBatterySuccess:
           showAlertDialog(
@@ -449,7 +449,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(Message.updateBattery);
+    TcpHandler.sendMessage(Message.updateBattery, context);
   }
 
   void removeSensor(index, context) {
@@ -459,7 +459,7 @@ class _MyHomePageState extends State<MyHomePage> {
       subscription.onData((message) {
         switch (message) {
           case Message.ack:
-            TcpHandler.sendMessage(Message.string + sensorID);
+            TcpHandler.sendMessage(Message.string + sensorID, context);
             break;
           case Message.removeSensorSuccess:
             showAlertDialog(context, "Sensore rimosso con successo!",
@@ -505,7 +505,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(Message.removeSensor);
+    TcpHandler.sendMessage(Message.removeSensor, context);
   }
 
   void deactivateSensor(int index) {
@@ -515,7 +515,7 @@ class _MyHomePageState extends State<MyHomePage> {
       print(message);
       switch (message) {
         case Message.ack:
-          TcpHandler.sendMessage(Message.string + sensorID);
+          TcpHandler.sendMessage(Message.string + sensorID, context);
           break;
         case Message.deactivateSensorSuccess:
           showAlertDialog(context, "Sensore disattivato con successo!",
@@ -541,7 +541,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(Message.deactivateSensor);
+    TcpHandler.sendMessage(Message.deactivateSensor, context);
   }
 
   void activateSensor(int index) {
@@ -550,7 +550,7 @@ class _MyHomePageState extends State<MyHomePage> {
     subscription.onData((message) {
       switch (message) {
         case Message.ack:
-          TcpHandler.sendMessage(Message.string + sensorID);
+          TcpHandler.sendMessage(Message.string + sensorID, context);
           break;
         case Message.activateSensorSuccess:
           showAlertDialog(context, "Sensore attivato con successo!",
@@ -576,7 +576,7 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
       }
     });
-    TcpHandler.sendMessage(Message.activateSensor);
+    TcpHandler.sendMessage(Message.activateSensor, context);
   }
 
   @override
@@ -828,7 +828,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
 
-    TcpHandler.sendMessage(Message.updatePin);
+    TcpHandler.sendMessage(Message.updatePin, context);
   }
 }
 

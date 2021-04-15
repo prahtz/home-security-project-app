@@ -42,8 +42,14 @@ class TcpHandler {
     
   }
 
-  static void sendMessage(String message) {
-    socket.add(utf8.encode(message + Message.eom));
+  static void sendMessage(String message, BuildContext context) {
+    try {
+      socket.add(utf8.encode(message + Message.eom));
+    }
+    catch(err) {
+      print(err);
+      showSocketErrorDialog(context);
+    }
   }
 
   static Stream<String> getMessageStream() {

@@ -227,7 +227,7 @@ class _PinFirstSetupState extends State<PinFirstSetupPage>
           _isButtonDisabled = false;
         });
       } else {
-        TcpHandler.sendMessage(Message.string + pin);
+        TcpHandler.sendMessage(Message.string + pin, context);
         _updateState();
       }
     }
@@ -302,7 +302,7 @@ class _PinCheckState extends State<PinCheckPage>
 
   Future<bool> _onBackPressed() async {
     print("Pin Update abort");
-    TcpHandler.sendMessage(Message.abort);
+    TcpHandler.sendMessage(Message.abort, context);
     Navigator.popUntil(context, (route) {
       return route.settings.name == MyHomePage.id;
     });
@@ -422,7 +422,7 @@ class _PinCheckState extends State<PinCheckPage>
       });
       return;
     }
-    TcpHandler.sendMessage(Message.string + pin);
+    TcpHandler.sendMessage(Message.string + pin, context);
   }
 }
 
@@ -502,7 +502,7 @@ class _PinUpdateState extends State<PinUpdatePage>
 
   Future<bool> _onBackPressed() async {
     print("Pin Update abort");
-    TcpHandler.sendMessage(Message.abort);
+    TcpHandler.sendMessage(Message.abort, context);
     Navigator.popUntil(context, (route) {
       return route.settings.name == MyHomePage.id;
     });
@@ -624,7 +624,7 @@ class _PinUpdateState extends State<PinUpdatePage>
     }
 
     if (_pinText == oldPIN)
-      TcpHandler.sendMessage(Message.string + pin);
+      TcpHandler.sendMessage(Message.string + pin, context);
     else if (_pinText == newPIN) {
       _firstPin = pin;
       _updateState();
@@ -637,7 +637,7 @@ class _PinUpdateState extends State<PinUpdatePage>
           _isButtonDisabled = false;
         });
       } else {
-        TcpHandler.sendMessage(Message.string + pin);
+        TcpHandler.sendMessage(Message.string + pin, context);
         _updateState();
       }
     }
