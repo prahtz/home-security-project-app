@@ -134,18 +134,25 @@ class _WaitingPageState extends State<WaitingPage>
   }
 
   void tryConnection() async {
-    String ip = "prah.homepc.it";
+    var ips = ["prah.homepc.it", "192.168.1.48"];
     int port = 33470;
-    try {
-      await TcpHandler.initSocket(ip, port);
-      await TcpHandler.startService(context);
-      _initListener();
-      _sendFirebaseToken();
-    } catch (err) {
+    int connFailedCount = 0;
+    for (String ip in ips) {
+      try {
+        await TcpHandler.initSocket(ip, port);
+        await TcpHandler.startService(context);
+        _initListener();
+        _sendFirebaseToken();
+        break;
+      } catch (err) {
+        connFailedCount = connFailedCount + 1;
+      }
+    }
+    if (connFailedCount == ips.length) {
       showAlertDialog(context, "Impossibile connettersi alla centralina",
-          "Verificare la connessione di rete e riprovare.", (void value) {
-        Phoenix.rebirth(context);
-        return value;
+            "Verificare la connessione di rete e riprovare.", (void value) {
+          Phoenix.rebirth(context);
+          return value;
       });
     }
   }
