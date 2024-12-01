@@ -21,10 +21,19 @@ class AlarmNotification {
   }
 
   static Future<int> init() async {
+    _channel.setMethodCallHandler(_handleMethod);
     return await _channel.invokeMethod('init');
   }
 
   static Future<int> show() async {
     return await _channel.invokeMethod('show');
+  }
+
+  static Future _onSelectedNotification() async {
+    stop();
+  }
+
+  static Future<void> _handleMethod(MethodCall call) {
+    return _onSelectedNotification();
   }
 }

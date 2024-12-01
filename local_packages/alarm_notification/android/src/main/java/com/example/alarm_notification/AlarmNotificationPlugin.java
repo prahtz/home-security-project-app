@@ -31,6 +31,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
+import android.content.BroadcastReceiver;
 
 /** AlarmNotificationPlugin */
 public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.NewIntentListener {
@@ -43,8 +44,34 @@ public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler
   private Context appContext;
   private Activity myActivity = null;
   private Intent myIntent = null;
-  private MediaPlayer mp = null;
+  public static MediaPlayer mp = null;
   private String CHANNEL_ID = "ALARM";
+
+  public static void stopPlayer() {
+    if (mp != null) {
+        mp.stop();
+        mp.reset();
+        mp.release();
+        mp = null;
+    }
+  }
+
+  public static void startPlayer(Context context) {
+    stopPlayer();
+    mp = new MediaPlayer();
+    mp.setAudioAttributes(new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build());
+    mp.setLooping(true);
+    try {
+    mp.setDataSource(context, Uri.parse("android.resource://com.example.home_security_project_app/"+"raw/alarm"));
+    mp.prepare();
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+    mp.start();
+  }
 
   public static void registerWith(Registrar registrar) {
     AlarmNotificationPlugin plugin = new AlarmNotificationPlugin();
@@ -79,7 +106,6 @@ public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler
       NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
       channel.setDescription(description);
       channel.setSound(null, null);
-      //channel.setSound(Uri.parse("android.resource://com.example.home_security_project_app/"+"raw/alarm"), att);
       NotificationManager notificationManager = appContext.getSystemService(NotificationManager.class);
       notificationManager.createNotificationChannel(channel);
     }
@@ -88,21 +114,31 @@ public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler
   private void showNotification() {
     String packageName = appContext.getPackageName();
     PackageManager packageManager = appContext.getPackageManager();
-    Intent fullScreenIntent = packageManager.getLaunchIntentForPackage(packageName);
-    fullScreenIntent.setAction("SELECT_NOTIFICATION");
+    Intent intent = packageManager.getLaunchIntentForPackage(packageName);
+    intent.setAction("SELECT_NOTIFICATION");
+    PendingIntent pendingIntent = PendingIntent.getActivity(appContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-    PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(appContext, 0,
-            fullScreenIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    // Intent for dismissing the notification
+    Intent dismissIntent = new Intent(appContext, NotificationBroadcastReceiver.class);
+    dismissIntent.setAction("NOTIFICATION_DISMISSED");
+
+    PendingIntent dismissPendingIntent = PendingIntent.getBroadcast(
+            appContext,
+            0,
+            dismissIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT
+    );
     NotificationCompat.Builder builder = new NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setContentTitle("ALLARME ATTIVO")
             .setContentText("Intrusione rilevata!")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setSmallIcon(appContext.getApplicationInfo().icon)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
+            //.setFullScreenIntent(pendingIntent, true)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
-            .setContentIntent(fullScreenPendingIntent)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+            .setContentIntent(pendingIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDeleteIntent(dismissPendingIntent);
     NotificationManagerCompat notificationManager = NotificationManagerCompat.from(appContext);
 
     int notificationId = 1;
@@ -115,34 +151,11 @@ public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler
     if (call.method.equals("getPlatformVersion")) {
       result.success("Android " + android.os.Build.VERSION.RELEASE);
     } else if(call.method.equals("play")) {
-      if(mp != null) {
-        mp.stop();
-        mp.reset();
-        mp.release();
-        mp = null;
-      }
-      mp = new MediaPlayer();
-      mp.setAudioAttributes(new AudioAttributes.Builder()
-              .setUsage(AudioAttributes.USAGE_ALARM)
-              .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-              .build());
-      mp.setLooping(true);
-      try {
-        mp.setDataSource(appContext, Uri.parse("android.resource://com.example.home_security_project_app/"+"raw/alarm"));
-        mp.prepare();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
-      mp.start();
+      startPlayer(appContext);
       result.success(0);
     }
     else if(call.method.equals("stop")) {
-      if (mp != null) {
-        mp.stop();
-        mp.reset();
-        mp.release();
-        mp = null;
-      }
+      stopPlayer();
       result.success(0);
     }
     else if(call.method.equals("init")) {
@@ -196,6 +209,10 @@ public class AlarmNotificationPlugin implements FlutterPlugin, MethodCallHandler
 
   @Override
   public boolean onNewIntent(Intent intent) {
+    if (intent.getAction().equals("SELECT_NOTIFICATION")){
+        stopPlayer();
+    }
+    
     if (myActivity != null) {
       myActivity.setIntent(intent);
       return true;

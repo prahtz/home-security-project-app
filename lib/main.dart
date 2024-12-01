@@ -17,6 +17,32 @@ import 'package:move_to_background/move_to_background.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:flutter/foundation.dart';
+
+class LifecycleEventHandler extends WidgetsBindingObserver {
+  final VoidCallback resumeCallBack;
+  final AsyncCallback suspendingCallBack;
+
+  LifecycleEventHandler({
+    this.resumeCallBack,
+    this.suspendingCallBack,
+  });
+
+  @override
+  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
+    print("state changed " + state.toString());
+    switch (state) {
+      case AppLifecycleState.resumed:
+        if (resumeCallBack != null) {
+          resumeCallBack();
+        }
+        break;
+      default:
+        
+    }
+  }
+}
+
 void main() {
   runApp(Phoenix(child: MyApp()));
 }
@@ -111,6 +137,7 @@ class _WaitingPageState extends State<WaitingPage>
   @override
   void initState() {
     super.initState();
+    AlarmNotification.stop();
     tryConnection();
   }
 
@@ -281,6 +308,11 @@ class _MyHomePageState extends State<MyHomePage> {
     _initListener();
     TcpHandler.sendMessage(Message.requestInfo, context);
     _pageController = PageController();
+    WidgetsBinding.instance.addObserver(
+      LifecycleEventHandler(resumeCallBack: () => setState(() {
+        AlarmNotification.stop();
+      }))
+    );
   }
 
   @override
