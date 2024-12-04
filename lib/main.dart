@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:home_security_project_app/push_notifications.dart';
 import 'package:home_security_project_app/register_pages.dart';
 import 'package:home_security_project_app/auth_pages.dart';
+import 'package:home_security_project_app/alarm_icon.dart';
 import 'package:alarm_notification/alarm_notification.dart';
 import 'package:home_security_project_app/tcp_handler.dart';
 import 'custom_icons_icons.dart';
@@ -16,8 +17,8 @@ import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:move_to_background/move_to_background.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'package:flutter/foundation.dart';
+
 
 class LifecycleEventHandler extends WidgetsBindingObserver {
   final VoidCallback resumeCallBack;
@@ -291,6 +292,7 @@ class _MyHomePageState extends State<MyHomePage> {
   PageController _pageController;
   List<List<String>> sensorInfoList = new List<List<String>>();
   bool _alarmActive = false;
+  bool _defensesActive = false;
   static const Map<String, int> _sensorIndexMap = {
     'type': 0,
     'id': 1,
@@ -328,8 +330,14 @@ class _MyHomePageState extends State<MyHomePage> {
           _alarmActive = message == Message.alarmActive ? true : false;
         });
       }
+      else if (message == Message.defensesActive || message == Message.defensesInactive) {
+        setState(() {
+          _defensesActive = message == Message.defensesActive ? true : false;
+        });
+      }
     });
   }
+
 
   void _activateAlarmPressed() async {
     TcpHandler.sendMessage(Message.activateAlarm, context);
@@ -632,10 +640,7 @@ class _MyHomePageState extends State<MyHomePage> {
               actions: <Widget>[
                 Container(
                     child: Container(
-                  child: Icon(
-                    Icons.fiber_manual_record,
-                    color: _alarmActive ? Colors.red[500] : Colors.green[500],
-                  ),
+                  child: AlarmIcon(_alarmActive, _defensesActive),
                   padding: EdgeInsets.all(15),
                 ))
               ],
@@ -915,6 +920,8 @@ class Message {
   static const String pinFirstSetup = "27";
   static const String pinFirstSetupSuccess = "28";
   static const String pinFirstSetupFailed = "29";
+  static const String defensesActive = "2A";
+  static const String defensesInactive = "2B";
   static const String eom = "//eom";
   static const String none = "//none";
   static const String string = "//·";

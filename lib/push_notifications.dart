@@ -73,10 +73,7 @@ class PushNotificationsManager {
     }
   }
 
-  Future showAlarmNotification() async {
-    AlarmNotification.play();
-    AlarmNotification.show();
-  }
+  
 
   Future showRingtoneNotification() async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
@@ -93,6 +90,11 @@ class PushNotificationsManager {
       platformChannelSpecifics,
     );
   }
+}
+
+Future showAlarmNotification() async {
+  AlarmNotification.play();
+  AlarmNotification.show();
 }
 
 Future selectNotification(String payload) async {}
@@ -125,8 +127,7 @@ Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) async {
       platformChannelSpecifics,
     );
   } else {
-    AlarmNotification.play();
-    AlarmNotification.show();
+    showAlarmNotification();
     waitAndStop();
   }
   return Future<void>.value();
