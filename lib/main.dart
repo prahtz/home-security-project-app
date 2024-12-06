@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-import 'package:home_security_project_app/push_notifications.dart';
+import 'package:home_security_project_app/connection_utils.dart';
 import 'package:home_security_project_app/register_pages.dart';
 import 'package:home_security_project_app/auth_pages.dart';
 import 'package:home_security_project_app/alarm_icon.dart';
@@ -139,7 +139,7 @@ class _WaitingPageState extends State<WaitingPage>
   void initState() {
     super.initState();
     AlarmNotification.stop();
-    tryConnection();
+    tryConnection(context);
   }
 
   @override
@@ -159,112 +159,6 @@ class _WaitingPageState extends State<WaitingPage>
               controller: AnimationController(
                   vsync: this, duration: const Duration(milliseconds: 1200))))
     ]));
-  }
-
-  void tryConnection() async {
-    var ips = ["prah.homepc.it", "192.168.1.48"];
-    int port = 33470;
-    int connFailedCount = 0;
-    for (String ip in ips) {
-      try {
-        await TcpHandler.initSocket(ip, port);
-        await TcpHandler.startService(context);
-        _initListener();
-        _sendFirebaseToken();
-        break;
-      } catch (err) {
-        connFailedCount = connFailedCount + 1;
-      }
-    }
-    if (connFailedCount == ips.length) {
-      showAlertDialog(context, "Impossibile connettersi alla centralina",
-            "Verificare la connessione di rete e riprovare.", (void value) {
-          Phoenix.rebirth(context);
-          return value;
-      });
-    }
-  }
-
-  void _setupFirstPin() async {
-    var sub = TcpHandler.getMessageStreamSubscription();
-    sub.onData((message) {
-      if (message == Message.ack) {
-        Navigator.pushNamed(context, PinFirstSetupPage.id);
-        sub.cancel();
-      } else if (message == Message.pinFirstSetupFailed) {
-        Navigator.pushNamed(context, MyHomePage.id);
-        sub.cancel();
-      }
-    });
-    TcpHandler.sendMessage(Message.pinFirstSetup, context);
-  }
-
-  void _sendFirebaseToken() async {
-    if (Platform.isAndroid) {
-      await PushNotificationsManager().init();
-      var sub = TcpHandler.getMessageStreamSubscription();
-      sub.onData((message) {
-        if (message == Message.ack)
-          TcpHandler.sendMessage(
-              Message.string + PushNotificationsManager.token, context);
-        else if (message == Message.firebaseTokenReceived) {
-          _setupFirstPin();
-          sub.cancel();
-        }
-      });
-      TcpHandler.sendMessage(Message.firebaseToken, context);
-    } else {
-      _setupFirstPin();
-    }
-  }
-
-  void _initListener() {
-    TcpHandler.getMessageStreamSubscription().onData((message) {
-      switch (message) {
-        case Message.nextCode:
-          Navigator.pushNamed(context, RegisterSecondPage.id, arguments: null);
-          break;
-        case Message.stringRequest:
-          Navigator.pushNamed(context, RegisterThirdPage.id);
-          break;
-        case Message.activationSuccess:
-          TcpHandler.sendMessage(Message.requestInfo, context);
-          showAlertDialog(context, "Allarme attivato!",
-              "Tieni premuto sul pulsante \"Disattiva allarme\" per disattivare l'allarme",
-              (v) {
-            return v;
-          });
-          break;
-        case Message.activationFailed:
-          showAlertDialog(context, "Impossibile attivare l'allarme",
-              "Controlla che tutti gli ingressi siano chiusi.\n\nPremi su \"Lista sensori\" per visualizzare lo stato attuale degli ingressi",
-              (v) {
-            return v;
-          });
-          break;
-        case Message.deactivationSuccess:
-          TcpHandler.sendMessage(Message.requestInfo, context);
-          showAlertDialog(context, "Allarme disattivato!", "", (v) {
-            return v;
-          });
-          break;
-        case Message.deactivationFailed:
-          showAlertDialog(context, "Impossibile disattivare l'allarme",
-              "Assicurati che l'allarme sia già attivo!", (v) {
-            return v;
-          });
-          break;
-        case Message.timeOut:
-          showAlertDialog(context, "Tempo scaduto!",
-              "Sarai reindirizzato verso la pagina principale", (v) {
-            Navigator.popUntil(
-                context, (route) => route.settings.name == MyHomePage.id);
-            return v;
-          });
-          break;
-        default:
-      }
-    });
   }
 }
 
@@ -293,6 +187,7 @@ class _MyHomePageState extends State<MyHomePage> {
   List<List<String>> sensorInfoList = new List<List<String>>();
   bool _alarmActive = false;
   bool _defensesActive = false;
+  LifecycleEventHandler _resumeObserver;
   static const Map<String, int> _sensorIndexMap = {
     'type': 0,
     'id': 1,
@@ -310,16 +205,16 @@ class _MyHomePageState extends State<MyHomePage> {
     _initListener();
     TcpHandler.sendMessage(Message.requestInfo, context);
     _pageController = PageController();
-    WidgetsBinding.instance.addObserver(
-      LifecycleEventHandler(resumeCallBack: () => setState(() {
+    _resumeObserver = LifecycleEventHandler(resumeCallBack: () => setState(() {
         AlarmNotification.stop();
-      }))
-    );
+      }));
+    WidgetsBinding.instance.addObserver(_resumeObserver);
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    WidgetsBinding.instance.removeObserver(_resumeObserver);
     super.dispose();
   }
 
@@ -935,32 +830,8 @@ class Message {
   Message._internal(); // private constructor
 }
 
-Future<void> showSocketErrorDialog(BuildContext context) {
-  return showDialog<void>(
-    context: context,
-    barrierDismissible: false, // user must tap button!
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text('Connessione al server persa'),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: <Widget>[
-              Text(
-                  'Controlla la connessione ad internet, l\'applicazione verrà riavviata.'),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          FlatButton(
-            child: Text('OK'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
-      );
-    },
-  ).then((value) => Phoenix.rebirth(context));
+dynamic onConnectionLost(BuildContext context) {
+  return Phoenix.rebirth(context);
 }
 
 Future<void> showAlertDialog(

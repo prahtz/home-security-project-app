@@ -33,7 +33,7 @@ class TcpHandler {
         print(error);
         messageStream.close();
         socket.close();
-        showSocketErrorDialog(context);
+        onConnectionLost(context);
       }, onDone: () {
         messageStream.close();
         socket.close();
@@ -48,7 +48,7 @@ class TcpHandler {
     }
     catch(err) {
       print(err);
-      showSocketErrorDialog(context);
+      onConnectionLost(context);
     }
   }
 
