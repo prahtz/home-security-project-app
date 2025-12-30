@@ -49,8 +49,11 @@ class PushNotificationsManager {
       _firebaseMessaging.requestNotificationPermissions();
       _firebaseMessaging.configure(
           onMessage: (Map<String, dynamic> message) async {
-            if (message['data'].toString().contains("battery")) {
-              showRingtoneNotification();
+            var notification_payload = message["data"];
+            print(notification_payload);
+            var notification_type = notification_payload["n_type"];
+            if (notification_type != "alarm_activated") {
+              showRingtoneNotification(notification_payload["title"], notification_payload["body"]);
             } else {
               showAlarmNotification();
             }
@@ -75,7 +78,7 @@ class PushNotificationsManager {
 
   
 
-  Future showRingtoneNotification() async {
+  Future showRingtoneNotification(String title, String body) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails('RING', 'Ringtone', 'Ringtone notification',
             importance: Importance.max,
@@ -85,8 +88,8 @@ class PushNotificationsManager {
         NotificationDetails(android: androidPlatformChannelSpecifics);
     await flutterLocalNotificationsPlugin.show(
       0,
-      'CORRENTE ASSENTE!',
-      'Rilevata assenza di corrente presso la centralina.',
+      title,
+      body,
       platformChannelSpecifics,
     );
   }
